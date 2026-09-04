@@ -10,4 +10,5 @@ edge-profile/
 *.exe
 config.json
 accounts.csv
-
+installer/staging/
+installer/dist/
