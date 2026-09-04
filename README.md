@@ -13,6 +13,13 @@
 - AdsPower 健康检查
 - 运行日志
 - 模拟执行模式，便于先验证调度和状态流程
+- 启动时检查 GitHub Release 的自动更新功能
+
+## 自动更新
+
+程序启动时会检查 `lingfengyear-alt/qingyan-mover` 的最新 Release。发现更高版本后会先询问，确认后下载名为 `QingyanMover-portable.zip` 的附件并自动替换程序文件。`config.json`、`accounts.csv`、`data` 和浏览器登录目录会保留不变。
+
+发布新版本时，必须创建 GitHub Release，并上传同名 ZIP 附件；仅修改仓库源码不会触发客户端更新。版本号使用 `v1.0.1` 或 `1.0.1` 格式。
 
 外部平台仍需要网络和登录状态。Facebook 最终发布动作不会由程序自动执行。
 

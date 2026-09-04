@@ -31,10 +31,13 @@ var configPath = GetOption("--config") ?? Path.Combine(baseDirectory, "config.js
 var dryRun = args.Contains("--dry-run", StringComparer.OrdinalIgnoreCase);
 var once = args.Contains("--once", StringComparer.OrdinalIgnoreCase);
 var continueTest = args.Contains("--continue-test", StringComparer.OrdinalIgnoreCase);
+var skipUpdate = args.Contains("--skip-update", StringComparer.OrdinalIgnoreCase);
 
 var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true, WriteIndented = true };
 var config = JsonSerializer.Deserialize<Config>(await File.ReadAllTextAsync(configPath), options)
              ?? throw new InvalidOperationException("配置无效");
+if (!skipUpdate && config.Updates.Enabled)
+    await UpdateManager.CheckAndOfferAsync(baseDirectory, config.Updates, "1.0.0");
 var monitorState = new MonitorState(config.Schedule.StartTime, config.Schedule.EndTime, config.Schedule.IntervalMinutes);
 if (!string.IsNullOrWhiteSpace(config.AccountsFile))
     config.AccountsFile = ResolvePath(config.AccountsFile, Path.GetDirectoryName(Path.GetFullPath(configPath))!);
@@ -2144,6 +2147,8 @@ return el;";
 
 sealed class Config
 {
+    [JsonPropertyName("updates")]
+    public UpdateConfig Updates { get; set; } = new();
     [JsonPropertyName("account")]
     public string Account { get; set; } = "";
     [JsonPropertyName("douyin_url")]
@@ -2657,6 +2662,13 @@ sealed class VisionConfig
     public int TimeoutSeconds { get; set; } = 20;
 }
 
+sealed class UpdateConfig
+{
+    [JsonPropertyName("enabled")] public bool Enabled { get; set; } = true;
+    [JsonPropertyName("repository")] public string Repository { get; set; } = "lingfengyear-alt/qingyan-mover";
+    [JsonPropertyName("asset_name")] public string AssetName { get; set; } = "QingyanMover-portable.zip";
+}
+
 sealed class AdsPowerConfig
 {
     [JsonPropertyName("profile_name")]
@@ -2704,4 +2716,58 @@ static class NativeMethods
     [DllImport("kernel32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool FreeConsole();
+}
+
+static class UpdateManager
+{
+    public static async Task CheckAndOfferAsync(string baseDirectory, UpdateConfig config, string currentVersion)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(config.Repository)) return;
+            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("qingyan-mover-updater");
+            using var response = await client.GetAsync($"https://api.github.com/repos/{config.Repository}/releases/latest");
+            if (!response.IsSuccessStatusCode) return;
+            using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            var tag = doc.RootElement.TryGetProperty("tag_name", out var tagElement) ? tagElement.GetString() : null;
+            if (!IsNewer(tag, currentVersion)) return;
+            var assets = doc.RootElement.TryGetProperty("assets", out var assetElement) ? assetElement : default;
+            if (assets.ValueKind != JsonValueKind.Array) return;
+            var asset = assets.EnumerateArray().FirstOrDefault(x =>
+                x.TryGetProperty("name", out var name) &&
+                string.Equals(name.GetString(), config.AssetName, StringComparison.OrdinalIgnoreCase));
+            if (asset.ValueKind == JsonValueKind.Undefined || !asset.TryGetProperty("browser_download_url", out var urlElement)) return;
+            var url = urlElement.GetString();
+            if (string.IsNullOrWhiteSpace(url)) return;
+            var answer = MessageBox.Show($"发现新版本 {tag}，当前版本 {currentVersion}。是否现在更新？",
+                "软件更新", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
+            if (answer != DialogResult.Yes) return;
+            var zipPath = Path.Combine(Path.GetTempPath(), $"qingyan-mover-{tag}.zip");
+            await File.WriteAllBytesAsync(zipPath, await client.GetByteArrayAsync(url));
+            var script = Path.Combine(baseDirectory, "updater.ps1");
+            if (!File.Exists(script)) return;
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = "powershell.exe",
+                Arguments = $"-NoProfile -ExecutionPolicy Bypass -File \"{script}\" -ZipPath \"{zipPath}\" -TargetDir \"{baseDirectory}\" -ProcessId {Environment.ProcessId}",
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                WindowStyle = ProcessWindowStyle.Hidden
+            });
+            Environment.Exit(0);
+        }
+        catch
+        {
+            // Update availability must never prevent monitoring from starting.
+        }
+    }
+
+    private static bool IsNewer(string? tag, string current)
+    {
+        if (string.IsNullOrWhiteSpace(tag)) return false;
+        var remote = tag.Trim().TrimStart('v', 'V');
+        return Version.TryParse(remote, out var remoteVersion) &&
+               Version.TryParse(current, out var currentVersion) && remoteVersion > currentVersion;
+    }
 }
