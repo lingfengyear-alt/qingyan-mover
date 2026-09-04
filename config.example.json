@@ -1,0 +1,24 @@
+{
+  "manual_login_required": true,
+  "state_file": "data\\_state.json",
+  "log_file": "data\\worker.log",
+  "artifact_dir": "data",
+  "poll_interval_seconds": 2,
+  "stage_retry_limit": 1,
+  "dry_run": false,
+  "auto_publish": false,
+  "vision": {
+    "endpoint": "https://blankapi.com/v1/chat/completions",
+    "model": "gpt-5.6-terra",
+    "api_key": "",
+    "api_key_environment": "BLANKAPI_API_KEY",
+    "timeout_seconds": 45
+  },
+  "schedule": {
+    "enabled": true,
+    "start_time": "1:00",
+    "end_time": "23:00",
+    "interval_minutes": 30
+  },
+  "accounts_file": "accounts.csv"
+}

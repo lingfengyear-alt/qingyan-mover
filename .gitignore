@@ -1,0 +1,13 @@
+bin/
+obj/
+publish/
+data/
+chrome-profile/
+edge-profile/
+*.user
+*.suo
+*.pdb
+*.exe
+config.json
+accounts.csv
+
