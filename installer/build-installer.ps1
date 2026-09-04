@@ -15,6 +15,7 @@ if ($LASTEXITCODE -ne 0) { throw 'dotnet publish failed; installer was not creat
 Copy-Item (Join-Path $root 'config.example.json') (Join-Path $staging 'config.json')
 Copy-Item (Join-Path $root 'accounts.example.csv') (Join-Path $staging 'accounts.csv')
 Copy-Item (Join-Path $root 'README.md') (Join-Path $staging 'README.txt')
+Copy-Item (Join-Path $root 'updater.ps1') (Join-Path $staging 'updater.ps1')
 Remove-Item (Join-Path $staging '*.pdb') -Force -ErrorAction SilentlyContinue
 
 $iscc = @(
